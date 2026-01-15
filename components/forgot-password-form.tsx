@@ -24,9 +24,13 @@ export function ForgotPasswordForm() {
     setError(null);
 
     try {
+      // Get the site URL from environment variable or fall back to current origin
+      // Use NEXT_PUBLIC_ prefix so it's available in the browser
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      
       // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: `${siteUrl}/auth/update-password`,
       });
       if (error) throw error;
       setSuccess(true);
