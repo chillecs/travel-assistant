@@ -56,6 +56,8 @@ Instead, recommend:
 1. Historic, legendary places (that have existed for 50+ years).
 2. General areas (e.g., "Dining in the Lipscani District").
 3. Or clearly state "A highly-rated restaurant such as [Name]".
+4. Do still say the street these locations are on.
+5. Just try to avoid recommending specific new or trendy locations that might have closed. Only recommend locations that have existed for a long time.
 
 Always prioritize generic activity descriptions over risky specific locations.
 Return ONLY JSON.`;
