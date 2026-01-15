@@ -40,6 +40,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate user still exists in database
+    const { data: profileCheck, error: profileError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    // Only fail if it's a "no rows" error (user deleted), not schema cache errors
+    if (!profileCheck && profileError) {
+      // PGRST116 = no rows returned (user doesn't exist)
+      if (profileError.code === "PGRST116") {
+        // User was deleted - sign them out
+        await supabase.auth.signOut();
+        return NextResponse.json(
+          { error: "Your account has been deleted. Please contact support." },
+          { status: 401 },
+        );
+      }
+      // Schema cache errors - ignore and continue (table might not be in cache yet)
+      if (profileError.message?.includes("schema cache") || 
+          profileError.message?.includes("Could not find the table")) {
+        console.warn("Schema cache issue - continuing anyway");
+        // Continue - user is valid, just schema cache issue
+      }
+    }
+
     // Verify trip belongs to user
     const { data: trip, error: tripError } = await supabase
       .from("itineraries")

@@ -50,6 +50,34 @@ function GeneratorPanel() {
         const {
           data: { user: currentUser },
         } = await supabase.auth.getUser();
+        
+        // Validate user still exists
+        if (currentUser) {
+          const { data: profileCheck, error: profileError } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("id", currentUser.id)
+            .single();
+
+          // Only sign out if it's a "no rows" error (user deleted), not schema cache errors
+          if (!profileCheck && profileError) {
+            // PGRST116 = no rows returned (user doesn't exist)
+            if (profileError.code === "PGRST116") {
+              // User was deleted - sign them out
+              await supabase.auth.signOut();
+              setUser(null);
+              window.location.href = "/auth/login";
+              return;
+            }
+            // Schema cache errors - ignore and continue (table might not be in cache yet)
+            if (profileError.message?.includes("schema cache") || 
+                profileError.message?.includes("Could not find the table")) {
+              console.warn("Schema cache issue - continuing anyway");
+              // Continue - user is valid, just schema cache issue
+            }
+          }
+        }
+        
         setUser(currentUser);
         // Auto-open sidebar on desktop
         if (currentUser && typeof window !== "undefined" && window.innerWidth >= 1024) {

@@ -68,29 +68,9 @@ export function SignUpForm() {
 
       if (signUpError) throw signUpError;
 
-      // If user was created, try to update the profile with username
-      // Note: The database trigger should handle this automatically, but we do it here as a backup
-      if (authData.user) {
-        try {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .upsert({
-              id: authData.user.id,
-              username: username.trim(),
-            }, {
-              onConflict: 'id'
-            });
-
-          if (profileError) {
-            console.error("Error creating profile:", profileError);
-            // Don't fail the signup if profile creation fails - trigger will handle it
-            // This is just a backup, so we continue even if it fails
-          }
-        } catch (profileErr) {
-          // Silently fail - the database trigger will create the profile
-          console.error("Profile creation error (non-critical):", profileErr);
-        }
-      }
+      // Note: The database trigger will automatically create the profile
+      // We don't need to manually create it here - this avoids schema cache issues
+      // The trigger uses the username from user_metadata, which we set above
 
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {

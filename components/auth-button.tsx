@@ -2,13 +2,13 @@ import Link from "next/link";
 import { Button } from "./ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { UserMenu } from "./user-menu";
+import { getValidatedUser } from "@/lib/supabase/validate-user";
 
 export async function AuthButton() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Get and validate user exists
+  const user = await getValidatedUser();
 
   let username: string | null = null;
 
