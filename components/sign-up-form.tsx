@@ -56,7 +56,11 @@ export function SignUpForm() {
     try {
       // Get the site URL from environment variable or fall back to current origin
       // Use NEXT_PUBLIC_ prefix so it's available in the browser
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      // Always use window.location.origin to ensure we use the correct domain
+      // (localhost for dev, production domain for production)
+      const siteUrl = window.location.origin;
+      
+      console.log("Signing up with redirect URL:", `${siteUrl}/auth/confirm`);
       
       // Sign up the user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -72,11 +76,18 @@ export function SignUpForm() {
 
       if (signUpError) throw signUpError;
 
-      // Note: The database trigger will automatically create the profile
-      // We don't need to manually create it here - this avoids schema cache issues
-      // The trigger uses the username from user_metadata, which we set above
-
-      router.push("/auth/sign-up-success");
+      // Check if email confirmation is required and if email was sent
+      if (authData.user && !authData.user.email_confirmed_at) {
+        // Email confirmation required - user needs to verify
+        // Supabase should have sent the email automatically
+        router.push("/auth/sign-up-success");
+      } else if (authData.user && authData.user.email_confirmed_at) {
+        // Email already confirmed (shouldn't happen normally, but handle it)
+        router.push("/");
+      } else {
+        // No user returned - might be an issue
+        throw new Error("Account creation failed. Please try again.");
+      }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {

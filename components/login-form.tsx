@@ -27,11 +27,42 @@ export function LoginForm() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+      
       if (error) throw error;
+      
+      // Check if email is confirmed
+      if (data.user && !data.user.email_confirmed_at) {
+        // Sign them out immediately
+        await supabase.auth.signOut();
+        
+        // Offer to resend confirmation email
+        setError("Please verify your email before signing in. Check your inbox for the confirmation link, or we can send you a new one.");
+        
+        // Optionally auto-resend confirmation email
+        try {
+          const { error: resendError } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth/confirm`,
+            }
+          });
+          
+          if (!resendError) {
+            setError("Please verify your email before signing in. A new confirmation email has been sent to your inbox.");
+          }
+        } catch (resendErr) {
+          // If resend fails, just show the error message
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+      
       // Use full page reload to ensure server components refresh
       window.location.href = "/";
     } catch (error: unknown) {
@@ -91,9 +122,33 @@ export function LoginForm() {
             />
           </div>
           {error ? (
-            <p className="rounded-xl border border-rose-200/60 bg-rose-50/80 px-3 py-2 text-sm text-rose-600">
-              {error}
-            </p>
+            <div className="rounded-xl border border-rose-200/60 bg-rose-50/80 px-3 py-2 text-sm text-rose-600">
+              <p>{error}</p>
+              {error.includes("verify your email") && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const supabase = createClient();
+                    try {
+                      const { error: resendError } = await supabase.auth.resend({
+                        type: 'signup',
+                        email: email,
+                        options: {
+                          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+                        }
+                      });
+                      if (resendError) throw resendError;
+                      setError("A new confirmation email has been sent! Please check your inbox.");
+                    } catch (err) {
+                      setError("Failed to resend email. Please try again later.");
+                    }
+                  }}
+                  className="mt-2 text-xs font-medium underline hover:no-underline"
+                >
+                  Resend confirmation email
+                </button>
+              )}
+            </div>
           ) : null}
           <Button
             type="submit"
