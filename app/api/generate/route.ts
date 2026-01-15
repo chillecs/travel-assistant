@@ -175,7 +175,9 @@ Rules:
       );
     }
 
-    const { data: savedItinerary, error: insertError } = await supabase
+    // Try to save to database, but don't fail if it doesn't work
+    let savedItinerary = null;
+    const { data: savedData, error: insertError } = await supabase
       .from("itineraries")
       .insert({
         user_id: user.id,
@@ -186,16 +188,41 @@ Rules:
       .single();
 
     if (insertError) {
-      return NextResponse.json(
-        { error: "Failed to save your itinerary. Please try again." },
-        { status: 500 },
-      );
+      // Log the error for debugging
+      console.error("Database save error:", {
+        error: insertError,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        code: insertError.code,
+      });
+      
+      // Check if it's a table doesn't exist error
+      const isTableMissing = 
+        insertError.message?.toLowerCase().includes("relation") ||
+        insertError.message?.toLowerCase().includes("does not exist") ||
+        insertError.code === "42P01";
+      
+      const saveErrorMessage = isTableMissing
+        ? "Itinerary generated successfully, but the database table doesn't exist. Please create the 'itineraries' table in your Supabase database."
+        : "Itinerary generated successfully, but couldn't be saved to your account. You can still view and use it below.";
+      
+      // Still return the itinerary even if save fails
+      // The user can still see and use it
+      return NextResponse.json({
+        itinerary: itineraryData,
+        itineraryId: null,
+        createdAt: null,
+        saveError: saveErrorMessage,
+      });
     }
+
+    savedItinerary = savedData;
 
     return NextResponse.json({
       itinerary: itineraryData,
-      itineraryId: savedItinerary.id,
-      createdAt: savedItinerary.created_at,
+      itineraryId: savedItinerary?.id ?? null,
+      createdAt: savedItinerary?.created_at ?? null,
     });
   } catch (error: unknown) {
 

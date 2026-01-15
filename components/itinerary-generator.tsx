@@ -35,6 +35,7 @@ export function ItineraryGenerator() {
   const [interests, setInterests] = useState("");
   const [itinerary, setItinerary] = useState<ItineraryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRequestInProgress, setIsRequestInProgress] = useState(false);
 
@@ -73,15 +74,27 @@ export function ItineraryGenerator() {
         throw new Error(errorMessage);
       }
 
-      const data = (await response.json()) as { itinerary?: ItineraryResponse };
+      const data = (await response.json()) as { 
+        itinerary?: ItineraryResponse;
+        saveError?: string;
+      };
       if (!data?.itinerary) {
         throw new Error("We couldn't generate your itinerary. Please try again.");
       }
 
       setItinerary(data.itinerary);
+      setError(null); // Clear any previous errors
+      
+      // Show a warning if save failed but itinerary was generated
+      if (data.saveError) {
+        setSaveWarning(data.saveError);
+      } else {
+        setSaveWarning(null);
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong.";
       setError(errorMessage);
+      setSaveWarning(null); // Clear save warning on actual error
     } finally {
       setIsLoading(false);
       setIsRequestInProgress(false);
@@ -227,6 +240,21 @@ export function ItineraryGenerator() {
                       Please add credits to your OpenAI account to continue using this feature.
                     </p>
                   ) : null}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {saveWarning && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-amber-200/60 bg-amber-50/80 px-4 py-3 text-sm text-amber-700"
+            >
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5">ℹ️</span>
+                <div>
+                  <p className="font-medium">{saveWarning}</p>
                 </div>
               </div>
             </motion.div>
