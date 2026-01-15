@@ -50,7 +50,15 @@ export async function POST(request: Request) {
     }
 
     const systemPrompt =
-      "You are a professional travel planner. Return ONLY a JSON object. No prose, no markdown blocks.";
+      `You are a travel assistant. 
+CRITICAL RULE: Since you do not have real-time internet access, avoid recommending specific new or trendy restaurants that might have closed. 
+Instead, recommend:
+1. Historic, legendary places (that have existed for 50+ years).
+2. General areas (e.g., "Dining in the Lipscani District").
+3. Or clearly state "A highly-rated restaurant such as [Name]".
+
+Always prioritize generic activity descriptions over risky specific locations.
+Return ONLY JSON.`;
 
     const userPrompt = `
 Destination: ${destination}
@@ -83,7 +91,7 @@ Rules:
     let completion;
     try {
       completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
