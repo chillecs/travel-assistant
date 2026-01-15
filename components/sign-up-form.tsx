@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Chrome, Facebook, Github } from "lucide-react";
 
 export function SignUpForm() {
   const [email, setEmail] = useState("");
@@ -33,18 +34,64 @@ export function SignUpForm() {
       return;
     }
 
+    // Validate username
+    if (!username.trim()) {
+      setError("Username is required");
+      setIsLoading(false);
+      return;
+    }
+
+    if (username.length < 3) {
+      setError("Username must be at least 3 characters");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { error } = await supabase.auth.signUp({
+      // Sign up the user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/`,
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
           data: {
-            full_name: username,
+            username: username.trim(),
           },
         },
       });
-      if (error) throw error;
+
+      if (signUpError) throw signUpError;
+
+      // If user was created, try to update the profile with username
+      // Note: The database trigger should handle this automatically, but we do it here as a backup
+      if (authData.user) {
+        try {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .upsert({
+              id: authData.user.id,
+              username: username.trim(),
+            }, {
+              onConflict: 'id'
+            });
+
+          if (profileError) {
+            console.error("Error creating profile:", profileError);
+            // Don't fail the signup if profile creation fails - trigger will handle it
+            // This is just a backup, so we continue even if it fails
+          }
+        } catch (profileErr) {
+          // Silently fail - the database trigger will create the profile
+          console.error("Profile creation error (non-critical):", profileErr);
+        }
+      }
+
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
@@ -71,17 +118,22 @@ export function SignUpForm() {
         <form onSubmit={handleSignUp} className="space-y-5">
           <div className="grid gap-2">
             <Label htmlFor="username" className={labelClassName}>
-              Full name
+              Username
             </Label>
             <Input
               id="username"
               type="text"
-              placeholder="Avery Lane"
+              placeholder="johndoe"
               required
+              minLength={3}
+              pattern="[a-zA-Z0-9_]+"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
               className={inputClassName}
             />
+            <p className="text-xs text-slate-400">
+              Letters, numbers, and underscores only. 3+ characters.
+            </p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="email" className={labelClassName}>
@@ -136,6 +188,47 @@ export function SignUpForm() {
             {isLoading ? "Creating an account..." : "Create account"}
           </Button>
         </form>
+
+        {/* Social Login Buttons */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200/70"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white/80 px-2 text-slate-500">Or continue with</span>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Coming soon"
+            >
+              <Chrome size={18} />
+              <span className="hidden sm:inline">Google</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Coming soon"
+            >
+              <Facebook size={18} />
+              <span className="hidden sm:inline">Facebook</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Coming soon"
+            >
+              <Github size={18} />
+              <span className="hidden sm:inline">GitHub</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <p className="text-center text-sm text-slate-600">

@@ -21,6 +21,11 @@ export async function POST(request: Request) {
     const duration = Number(body?.duration);
     const interests =
       typeof body?.interests === "string" ? body.interests.trim() : "";
+    const travelStyle = body?.travelStyle || "Solo";
+    const pace = body?.pace || "Balanced";
+    const transport = body?.transport || "Walking";
+    const dietaryRestrictions = body?.dietaryRestrictions || "";
+    const tripId = body?.tripId || null; // For updating existing trips
 
     if (!destination || !Number.isFinite(duration) || duration < 1) {
       return NextResponse.json(
@@ -66,6 +71,10 @@ Return ONLY JSON.`;
 Destination: ${destination}
 Duration: ${duration} days
 Interests: ${interests}
+Travel Style: ${travelStyle}
+Pace: ${pace} (${pace === "Relaxed" ? "2 activities per day" : pace === "Balanced" ? "3-4 activities per day" : "5+ activities per day, full day"})
+Transport: ${transport}
+${dietaryRestrictions ? `Dietary Restrictions: ${dietaryRestrictions}` : ""}
 
 Return a JSON object that strictly matches this schema:
 {
@@ -83,11 +92,15 @@ Return a JSON object that strictly matches this schema:
 
 Rules:
 - Generate exactly ${duration} day objects.
-- Include 3-5 activities per day.
+- ${pace === "Relaxed" ? "Include 2 activities per day (morning and afternoon)." : pace === "Balanced" ? "Include 3-4 activities per day." : "Include 5+ activities per day, from morning to evening."}
+- Travel Style: ${travelStyle} - adjust recommendations accordingly (${travelStyle === "Family" ? "family-friendly activities" : travelStyle === "Couple" ? "romantic spots" : travelStyle === "Friends" ? "group activities" : "solo-friendly places"}).
+- Transport: ${transport} - ${transport === "Walking" ? "keep activities within walking distance" : transport === "Public Transport" ? "consider public transport connections" : "activities can be spread out, include parking info"}.
+${dietaryRestrictions ? `- Dietary: ${dietaryRestrictions} - ensure all restaurant recommendations accommodate this.` : ""}
 - Focus on the user's interests: ${interests}
 - Use concise, premium-sounding activity descriptions.
 - Keep estimatedCost as a short string (ex: "$18", "Free", "$45-60").
 - Create a cohesive itinerary that matches their interests throughout the trip.
+- For each activity location, include street name and area/neighborhood for Google Maps verification.
 `;
 
     let completion;
@@ -178,61 +191,143 @@ Rules:
     let itineraryData: unknown;
     try {
       itineraryData = JSON.parse(content);
+      
+      // Validate that the response makes sense
+      const parsed = itineraryData as { tripName?: string; days?: unknown[] };
+      if (!parsed.tripName || !parsed.days || !Array.isArray(parsed.days) || parsed.days.length === 0) {
+        return NextResponse.json(
+          { 
+            error: "I didn't understand your request. Please provide a clear destination, duration, and interests. For example: Destination: 'Paris', Duration: 5, Interests: 'museums, art, food'.",
+            unclearInput: true
+          },
+          { status: 400 },
+        );
+      }
     } catch {
       return NextResponse.json(
-        { error: "We received an invalid response. Please try again." },
-        { status: 502 },
+        { 
+          error: "I didn't understand your request. Please provide clearer information about your destination, duration, and interests.",
+          unclearInput: true
+        },
+        { status: 400 },
       );
     }
 
     // Try to save to database, but don't fail if it doesn't work
     let savedItinerary = null;
-    const { data: savedData, error: insertError } = await supabase
-      .from("itineraries")
-      .insert({
-        user_id: user.id,
-        destination,
-        itinerary_data: itineraryData,
-      })
-      .select("id, created_at")
-      .single();
+    let dbError: any = null;
+    const tripTitle = (itineraryData as { tripName?: string })?.tripName || `${destination} - ${duration} days`;
+    
+    if (tripId) {
+      // Update existing trip
+      const { data: existingTrip } = await supabase
+        .from("itineraries")
+        .select("history, itinerary_data")
+        .eq("id", tripId)
+        .eq("user_id", user.id)
+        .single();
 
-    if (insertError) {
+      const history = existingTrip?.history || [];
+      const previousData = existingTrip?.itinerary_data;
+
+      const { data: savedData, error: updateError } = await supabase
+        .from("itineraries")
+        .update({
+          title: tripTitle,
+          destination,
+          duration,
+          travel_style: travelStyle,
+          pace,
+          transport,
+          dietary_restrictions: dietaryRestrictions || null,
+          interests,
+          itinerary_data: itineraryData,
+          history: [...(Array.isArray(history) ? history : []), previousData].filter(Boolean),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tripId)
+        .eq("user_id", user.id)
+        .select("id, created_at, updated_at")
+        .single();
+
+      if (!updateError) {
+        savedItinerary = savedData;
+      } else {
+        dbError = updateError;
+        console.error("Database update error:", updateError);
+      }
+    } else {
+      // Create new trip
+      const { data: savedData, error: insertError } = await supabase
+        .from("itineraries")
+        .insert({
+          user_id: user.id,
+          title: tripTitle,
+          destination,
+          duration,
+          travel_style: travelStyle,
+          pace,
+          transport,
+          dietary_restrictions: dietaryRestrictions || null,
+          interests,
+          itinerary_data: itineraryData,
+        })
+        .select("id, created_at, updated_at")
+        .single();
+
+      if (!insertError) {
+        savedItinerary = savedData;
+      } else {
+        dbError = insertError;
+        console.error("Database insert error:", insertError);
+      }
+    }
+
+    if (!savedItinerary) {
       // Log the error for debugging
-      console.error("Database save error:", {
-        error: insertError,
-        message: insertError.message,
-        details: insertError.details,
-        hint: insertError.hint,
-        code: insertError.code,
-      });
+      if (dbError) {
+        console.error("Database save error:", {
+          error: dbError,
+          message: dbError.message,
+          details: dbError.details,
+          hint: dbError.hint,
+          code: dbError.code,
+        });
+        
+        // Check if it's a table doesn't exist error
+        const isTableMissing = 
+          dbError.message?.toLowerCase().includes("relation") ||
+          dbError.message?.toLowerCase().includes("does not exist") ||
+          dbError.code === "42P01";
+        
+        const saveErrorMessage = isTableMissing
+          ? "Itinerary generated successfully, but the database table doesn't exist. Please create the 'itineraries' table in your Supabase database."
+          : "Itinerary generated successfully, but couldn't be saved to your account. You can still view and use it below.";
+        
+        // Still return the itinerary even if save fails
+        // The user can still see and use it
+        return NextResponse.json({
+          itinerary: itineraryData,
+          itineraryId: null,
+          createdAt: null,
+          saveError: saveErrorMessage,
+        });
+      }
       
-      // Check if it's a table doesn't exist error
-      const isTableMissing = 
-        insertError.message?.toLowerCase().includes("relation") ||
-        insertError.message?.toLowerCase().includes("does not exist") ||
-        insertError.code === "42P01";
-      
-      const saveErrorMessage = isTableMissing
-        ? "Itinerary generated successfully, but the database table doesn't exist. Please create the 'itineraries' table in your Supabase database."
-        : "Itinerary generated successfully, but couldn't be saved to your account. You can still view and use it below.";
-      
-      // Still return the itinerary even if save fails
-      // The user can still see and use it
+      // If no specific error but still failed to save
       return NextResponse.json({
         itinerary: itineraryData,
         itineraryId: null,
         createdAt: null,
-        saveError: saveErrorMessage,
+        saveError: "Itinerary generated successfully, but couldn't be saved to your account. You can still view and use it below.",
       });
     }
-
-    savedItinerary = savedData;
 
     return NextResponse.json({
       itinerary: itineraryData,
       itineraryId: savedItinerary?.id ?? null,
       createdAt: savedItinerary?.created_at ?? null,
+      updatedAt: savedItinerary?.updated_at ?? null,
     });
   } catch (error: unknown) {
 

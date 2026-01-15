@@ -13,23 +13,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type UserMenuProps = {
-  name?: string | null;
+  username?: string | null;
   email: string;
 };
 
-const getInitials = (value: string) =>
-  value
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+const getInitials = (value: string) => {
+  if (!value) return "TA";
+  // For username, take first 2 characters
+  if (value.length <= 2) return value.toUpperCase();
+  return value.substring(0, 2).toUpperCase();
+};
 
-export function UserMenu({ name, email }: UserMenuProps) {
+export function UserMenu({ username, email }: UserMenuProps) {
   const router = useRouter();
   const supabase = createClient();
-  const displayName = name?.trim() || email.split("@")[0] || "Traveler";
-  const initials = getInitials(displayName);
+  const displayUsername = username?.trim() || email.split("@")[0] || "Traveler";
+  const initials = getInitials(displayUsername);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -55,7 +54,7 @@ export function UserMenu({ name, email }: UserMenuProps) {
       >
         <div className="px-2 py-2">
           <p className="text-sm font-semibold text-slate-900">
-            {displayName}
+            {displayUsername}
           </p>
           <p className="text-xs text-slate-500">{email}</p>
         </div>

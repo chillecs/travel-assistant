@@ -1,9 +1,13 @@
-import Link from "next/link";
-import { Suspense } from "react";
+"use client";
+
+import { useState, Suspense } from "react";
 import { CalendarDays, MapPin, Sparkles, Wallet } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { ItineraryGenerator } from "@/components/itinerary-generator";
+import { createClient } from "@/lib/supabase/client";
+import { ItineraryGeneratorV2 } from "@/components/itinerary-generator-v2";
+import { TripsSidebar } from "@/components/trips-sidebar";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useEffect } from "react";
 
 function LoginCard() {
   return (
@@ -32,30 +36,78 @@ function LoginCard() {
   );
 }
 
-function GeneratorFallback() {
+function GeneratorPanel() {
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentTripId, setCurrentTripId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+        setUser(currentUser);
+        // Auto-open sidebar on desktop
+        if (currentUser && typeof window !== "undefined" && window.innerWidth >= 1024) {
+          setSidebarOpen(true);
+        }
+      } catch (error) {
+        console.error("Error checking user:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkUser();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+        <div className="h-6 w-1/2 animate-pulse rounded-full bg-slate-200/80" />
+        <div className="mt-6 space-y-3">
+          <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+          <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+          <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginCard />;
+  }
+
   return (
-    <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-      <div className="h-6 w-1/2 animate-pulse rounded-full bg-slate-200/80" />
-      <div className="mt-6 space-y-3">
-        <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
-        <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
-        <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+    <div className="flex gap-6">
+      <TripsSidebar
+        currentTripId={currentTripId}
+        onSelectTrip={setCurrentTripId}
+        onNewTrip={() => {
+          setCurrentTripId(null);
+        }}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        refreshTrigger={refreshTrigger}
+      />
+      <div className="flex-1 min-w-0">
+        <ItineraryGeneratorV2
+          tripId={currentTripId}
+          onTripSaved={(id) => {
+            setCurrentTripId(id);
+            setRefreshTrigger((prev) => prev + 1); // Trigger sidebar refresh
+          }}
+          onNewTrip={() => setCurrentTripId(null)}
+        />
       </div>
     </div>
   );
 }
 
-async function GeneratorPanel() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return user ? <ItineraryGenerator /> : <LoginCard />;
-}
-
 export default function Home() {
-
   return (
     <main className="relative min-h-screen overflow-hidden bg-white text-slate-900">
       <div className="pointer-events-none absolute inset-0">
@@ -63,49 +115,34 @@ export default function Home() {
         <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-slate-100/80 blur-3xl" />
       </div>
 
-      <section className="relative mx-auto flex w-full max-w-6xl flex-col gap-16 px-6 pb-24 pt-16 lg:pt-24">
-        <div className="grid gap-14 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
-          <div className="space-y-8">
+      <section className="relative mx-auto w-full pb-24 pt-16 lg:pt-24">
+        <div className="px-6">
+          {/* Hero text for logged in users - shown on mobile/tablet */}
+          <div className="mb-8 lg:hidden">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/70 px-4 py-2 text-xs font-medium uppercase tracking-[0.2em] text-slate-500 shadow-sm backdrop-blur">
               <Sparkles size={14} strokeWidth={1.2} />
               AI itinerary studio
             </div>
-            <div className="space-y-6">
-              <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-                TravelAI crafts{" "}
-                <span className="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-400 bg-clip-text text-transparent">
-                  premium itineraries
-                </span>{" "}
-                in minutes.
-              </h1>
-              <p className="text-lg text-slate-600">
-                A focused, AI-native planner for travelers who want curated days,
-                budget-aware recommendations, and a refined itinerary you can
-                actually follow.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-6 text-sm text-slate-500">
-              <div className="flex items-center gap-2">
-                <MapPin size={16} strokeWidth={1.2} />
-                Neighborhood-first recommendations
-              </div>
-              <div className="flex items-center gap-2">
-                <CalendarDays size={16} strokeWidth={1.2} />
-                Day-by-day structure
-              </div>
-              <div className="flex items-center gap-2">
-                <Wallet size={16} strokeWidth={1.2} />
-                Budget-aligned picks
-              </div>
-            </div>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+              TravelAI crafts{" "}
+              <span className="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-400 bg-clip-text text-transparent">
+                premium itineraries
+              </span>
+            </h1>
           </div>
 
-          <div className="lg:pt-4">
-            <Suspense fallback={<GeneratorFallback />}>
-              <GeneratorPanel />
-            </Suspense>
-          </div>
+          <Suspense fallback={
+            <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+              <div className="h-6 w-1/2 animate-pulse rounded-full bg-slate-200/80" />
+              <div className="mt-6 space-y-3">
+                <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+                <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+                <div className="h-10 animate-pulse rounded-xl bg-slate-100/80" />
+              </div>
+            </div>
+          }>
+            <GeneratorPanel />
+          </Suspense>
         </div>
       </section>
     </main>

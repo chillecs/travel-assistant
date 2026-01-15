@@ -10,14 +10,26 @@ export async function AuthButton() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let username: string | null = null;
+
+  if (user) {
+    // Try to get username from profiles table
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .single();
+
+    username = profile?.username ?? 
+               user.user_metadata?.username ?? 
+               user.user_metadata?.full_name ?? 
+               null;
+  }
+
   return user ? (
     <UserMenu
-      name={
-        user.user_metadata?.full_name ??
-        user.user_metadata?.name ??
-        user.user_metadata?.username
-      }
-      email={user.email ?? "Traveler"}
+      username={username}
+      email={user.email ?? ""}
     />
   ) : (
     <div className="flex gap-2">

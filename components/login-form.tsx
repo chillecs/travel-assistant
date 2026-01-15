@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Chrome, Facebook, Github } from "lucide-react";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -102,6 +103,47 @@ export function LoginForm() {
             {isLoading ? "Logging in..." : "Sign in"}
           </Button>
         </form>
+
+        {/* Social Login Buttons */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200/70"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white/80 px-2 text-slate-500">Or continue with</span>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Coming soon"
+            >
+              <Chrome size={18} />
+              <span className="hidden sm:inline">Google</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Coming soon"
+            >
+              <Facebook size={18} />
+              <span className="hidden sm:inline">Facebook</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Coming soon"
+            >
+              <Github size={18} />
+              <span className="hidden sm:inline">GitHub</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <p className="text-center text-sm text-slate-600">
