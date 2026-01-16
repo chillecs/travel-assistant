@@ -60,8 +60,6 @@ export function SignUpForm() {
       // (localhost for dev, production domain for production)
       const siteUrl = window.location.origin;
       
-      console.log("Signing up with redirect URL:", `${siteUrl}/auth/confirm`);
-      
       // Sign up the user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
